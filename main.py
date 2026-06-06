@@ -52,7 +52,7 @@ def main():
                         help="Side chamfer depth downward along the Z axis in mm (default: 1.0)")
     parser.add_argument("-b", "--bed-size", type=parse_bed_size, default="256x256",
                         help="Printer bed size in WIDTHxDEPTH format, e.g. '270x270' (default: 256x256)")
-    parser.add_argument("--bed-margin", type=float, default=10.0,
+    parser.add_argument("-m", "--bed-margin", type=float, default=10.0,
                         help="Margin from the printer bed edge in mm on each side (default: 10.0)")
     parser.add_argument("--half-unit-labels", choices=["none", "half-only", "full"], default="none",
                         help="Half-unit label mode: none, half-only (.5), or full (7.5).")
