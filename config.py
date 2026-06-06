@@ -73,6 +73,10 @@ class Config:
         self.output = kwargs.get("output", "gridfinity_ruler")
         self.bed_size = kwargs.get("bed_size", (256, 256))
         self.bed_margin = kwargs.get("bed_margin", 10.0)
+        self.half_unit_labels = kwargs.get(
+            "half_unit_labels",
+            kwargs.get("half_unit_label_mode", "none"),
+        )
 
         if self.ruler_units is None:
             self.ruler_units = self.compute_max_ruler_units()

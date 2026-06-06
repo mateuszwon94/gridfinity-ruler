@@ -7,9 +7,10 @@ def generate_ruler(config):
     # Calculate how many progress steps to show while generating markers
     total_length_markers = config.ruler_units + 1
     total_half_markers = config.ruler_units
+    half_label_steps = config.ruler_units if config.half_unit_labels != "none" else 0
     max_z_units = int(config.ruler_length // config.unit_height)
     total_height_markers = max_z_units + 1
-    total_steps = total_length_markers * 2 + total_half_markers + total_height_markers * 2
+    total_steps = total_length_markers * 2 + total_half_markers + half_label_steps + total_height_markers * 2
 
     # --- PART 1: RULER BASE (COLOR: WHITE) ---
     with BuildPart() as base_ruler:
@@ -74,6 +75,17 @@ def generate_ruler(config):
                         with Locations((x, config.ruler_width / 2)):
                             Polygon([(0, 0), (1, -2), (-1, -2)], align=(Align.CENTER, Align.MAX))
                         progress.update(1)
+
+                        half_label = None
+                        if config.half_unit_labels == "half-only":
+                            half_label = ".5"
+                        elif config.half_unit_labels == "full":
+                            half_label = f"{i/2:.1f}"
+
+                        if half_label is not None:
+                            with Locations((x, config.ruler_width / 2 - 4)):
+                                Text(half_label, font_size=4, align=(Align.CENTER, Align.MAX))
+                            progress.update(1)
 
                 # --- Height Scale (Bottom Edge, Y = -RULER_WIDTH / 2) ---
                 for i in range(0, max_z_units + 1):

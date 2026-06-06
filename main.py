@@ -54,6 +54,8 @@ def main():
                         help="Printer bed size in WIDTHxDEPTH format, e.g. '270x270' (default: 256x256)")
     parser.add_argument("--bed-margin", type=float, default=10.0,
                         help="Margin from the printer bed edge in mm on each side (default: 10.0)")
+    parser.add_argument("--half-unit-labels", choices=["none", "half-only", "full"], default="none",
+                        help="Half-unit label mode: none, half-only (.5), or full (7.5).")
 
     args = parser.parse_args()
     config = Config.from_args(args)
@@ -62,7 +64,7 @@ def main():
     multicolor_ruler = generate_ruler(config)
 
     print(f"\n--- GENERATION INFO ---")
-    print(f"Parameters used: Length={config.ruler_units}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.bed_size_str}, Bed Margin={config.bed_margin}mm")
+    print(f"Parameters used: Length={config.ruler_units}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.bed_size_str}, Bed Margin={config.bed_margin}mm, Half-unit labels={config.half_unit_labels}")
     print(f"Target extensions generated: {config.output_format}")
 
     # Export generated model into requested formats
