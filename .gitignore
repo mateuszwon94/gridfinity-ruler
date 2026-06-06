@@ -219,3 +219,6 @@ __marimo__/
 
 *.stl
 *.step
+*.3mf
+*.brep
+*.glb
