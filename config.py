@@ -26,7 +26,7 @@ def parse_output_formats(value: str) -> list[str]:
     return selected_formats
 
 
-def parse_print_area(value: str) -> tuple[int, int]:
+def parse_bed_size(value: str) -> tuple[int, int]:
     """
     Parse a printer bed size in the format WIDTHxDEPTH, e.g. '270x270'.
     """
@@ -59,10 +59,10 @@ class Config:
         Initialize the configuration with explicit values or defaults.
         Ensures output_format always resolves to a list of validated strings.
         """
-        self.u_len = kwargs.get("u_len", 42.0)
-        self.u_height = kwargs.get("u_height", 7.0)
+        self.unit_length = kwargs.get("unit_length", 42.0)
+        self.unit_height = kwargs.get("unit_height", 7.0)
         
-        self.ruler_u = kwargs.get("ruler_u")
+        self.ruler_units = kwargs.get("ruler_units")
         self.width_multiplier = kwargs.get("width_multiplier", 0.5)
         self.base_thickness = kwargs.get("base_thickness", 2.0)
         self.marker_extrusion = kwargs.get("marker_extrusion", 0.3)
@@ -71,10 +71,11 @@ class Config:
         self.chamfer_depth = kwargs.get("chamfer_depth", 1.0)
         
         self.output = kwargs.get("output", "gridfinity_ruler")
-        self.print_area = kwargs.get("print_area", (256, 256))
+        self.bed_size = kwargs.get("bed_size", (256, 256))
+        self.bed_margin = kwargs.get("bed_margin", 10.0)
 
-        if self.ruler_u is None:
-            self.ruler_u = self.compute_max_ruler_units()
+        if self.ruler_units is None:
+            self.ruler_units = self.compute_max_ruler_units()
         
         raw_format = kwargs.get("output_format", "all")
         if raw_format == "all":
@@ -96,12 +97,12 @@ class Config:
 
     def compute_max_ruler_units(self) -> int:
         """Compute the maximum whole Gridfinity units that fit on the printer bed."""
-        avail_width = self.print_area[0] - 20
-        avail_depth = self.print_area[1] - 20
+        avail_width = self.bed_size[0] - 2 * self.bed_margin
+        avail_depth = self.bed_size[1] - 2 * self.bed_margin
 
         if avail_width <= 0 or avail_depth <= 0:
             raise ValueError(
-                "Printer bed size too small after applying 10mm margins on each side."
+                f"Printer bed size too small after applying {self.bed_margin:.1f}mm margins on each side."
             )
 
         rect_width = self.ruler_width
@@ -112,7 +113,7 @@ class Config:
             )
 
         max_length = self._max_rectangle_length(avail_width, avail_depth, rect_width)
-        max_units = int(math.floor(max_length / self.u_len))
+        max_units = int(math.floor(max_length / self.unit_length))
 
         if max_units < 1:
             raise ValueError(
@@ -158,12 +159,12 @@ class Config:
 
     @property
     def ruler_length(self) -> float:
-        return self.ruler_u * self.u_len
+        return self.ruler_units * self.unit_length
 
     @property
     def ruler_width(self) -> float:
-        return self.width_multiplier * self.u_len
+        return self.width_multiplier * self.unit_length
 
     @property
-    def print_area_str(self) -> str:
-        return f"{self.print_area[0]}x{self.print_area[1]}"
+    def bed_size_str(self) -> str:
+        return f"{self.bed_size[0]}x{self.bed_size[1]}"

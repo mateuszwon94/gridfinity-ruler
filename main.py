@@ -1,6 +1,6 @@
 import argparse
 from build123d import export_stl, export_step, export_gltf, export_brep, Mesher
-from config import Config, parse_output_formats, parse_print_area
+from config import Config, parse_output_formats, parse_bed_size
 from generate_ruler import generate_ruler
 
 
@@ -29,7 +29,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("-u", "--ruler-u", type=int, default=None,
+    parser.add_argument("-u", "--ruler-units", type=int, default=None,
                         help="How long the ruler should be in Gridfinity units. If omitted, the ruler will be sized to the maximum length that fits the printer bed.")
     parser.add_argument("-w", "--width-multiplier", type=float, default=0.5,
                         help="Ruler width as a multiplier of 1 length unit (default: 0.5)")
@@ -38,9 +38,9 @@ def main():
     parser.add_argument("-f", "--output-format", type=parse_output_formats, default="all",
                         help="Output format: 'stl', 'step', '3mf', 'gltf', 'brep', 'all', or comma-separated list like 'stl,3mf' (default: 'all')")
 
-    parser.add_argument("--u-len", type=float, default=42.0,
+    parser.add_argument("--unit-length", type=float, default=42.0,
                         help="1 standard Gridfinity length unit in mm (default: 42.0)")
-    parser.add_argument("--u-height", type=float, default=7.0,
+    parser.add_argument("--unit-height", type=float, default=7.0,
                         help="1 standard Gridfinity height unit in mm (default: 7.0)")
     parser.add_argument("--base-thickness", type=float, default=2.0,
                         help="Total thickness of the ruler base in mm (default: 2.0)")
@@ -50,8 +50,10 @@ def main():
                         help="Side chamfer width inward along the Y axis in mm (default: 4.0)")
     parser.add_argument("--chamfer-depth", type=float, default=1.0,
                         help="Side chamfer depth downward along the Z axis in mm (default: 1.0)")
-    parser.add_argument("--bed-size", type=parse_print_area, default="256x256",
+    parser.add_argument("-b", "--bed-size", type=parse_bed_size, default="256x256",
                         help="Printer bed size in WIDTHxDEPTH format, e.g. '270x270' (default: 256x256)")
+    parser.add_argument("--bed-margin", type=float, default=10.0,
+                        help="Margin from the printer bed edge in mm on each side (default: 10.0)")
 
     args = parser.parse_args()
     config = Config.from_args(args)
@@ -60,7 +62,7 @@ def main():
     multicolor_ruler = generate_ruler(config)
 
     print(f"\n--- GENERATION INFO ---")
-    print(f"Parameters used: Length={config.ruler_u}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.print_area_str}")
+    print(f"Parameters used: Length={config.ruler_units}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.bed_size_str}, Bed Margin={config.bed_margin}mm")
     print(f"Target extensions generated: {config.output_format}")
 
     # Export generated model into requested formats

@@ -4,11 +4,10 @@ from tqdm import tqdm
 
 def generate_ruler(config):
     """Build and return the multicolor ruler model using the provided config."""
-    
     # Calculate how many progress steps to show while generating markers
-    total_length_markers = config.ruler_u + 1
-    total_half_markers = config.ruler_u
-    max_z_units = int(config.ruler_length // config.u_height)
+    total_length_markers = config.ruler_units + 1
+    total_half_markers = config.ruler_units
+    max_z_units = int(config.ruler_length // config.unit_height)
     total_height_markers = max_z_units + 1
     total_steps = total_length_markers * 2 + total_half_markers + total_height_markers * 2
 
@@ -33,8 +32,8 @@ def generate_ruler(config):
             with BuildSketch(Plane.XY) as markers_sketch:
                 
                 # --- Length Scale (Top Edge, Y = RULER_WIDTH / 2) ---
-                for i in range(0, config.ruler_u + 1):
-                    x = i * config.u_len
+                for i in range(0, config.ruler_units + 1):
+                    x = i * config.unit_length
                     progress.set_postfix_str(f"Length scale {i} elements")
                     
                     # First marker: Half-triangle (right half), tip at (0,0)
@@ -48,7 +47,7 @@ def generate_ruler(config):
                         progress.update(1)
                     
                     # Last marker: Half-triangle (left half), tip at (0,0)
-                    elif i == config.ruler_u:
+                    elif i == config.ruler_units:
                         with Locations((x, config.ruler_width / 2)):
                             Polygon([(0, 0), (-1.5, -3), (0, -3)], align=(Align.MAX, Align.MAX))
                         progress.update(1)
@@ -68,9 +67,9 @@ def generate_ruler(config):
                         progress.update(1)
 
                 # Half-unit scale markers
-                for i in range(1, config.ruler_u * 2):
+                for i in range(1, config.ruler_units * 2):
                     if i % 2 != 0:
-                        x = i * (config.u_len / 2)
+                        x = i * (config.unit_length / 2)
                         progress.set_postfix_str(f"Length scale {i/2} elements")
                         with Locations((x, config.ruler_width / 2)):
                             Polygon([(0, 0), (1, -2), (-1, -2)], align=(Align.CENTER, Align.MAX))
@@ -78,7 +77,7 @@ def generate_ruler(config):
 
                 # --- Height Scale (Bottom Edge, Y = -RULER_WIDTH / 2) ---
                 for i in range(0, max_z_units + 1):
-                    x = i * config.u_height
+                    x = i * config.unit_height
                     progress.set_postfix_str(f"Height scale {i} elements")
                     
                     # First marker: Half-triangle (right half), tip at (0,0)
