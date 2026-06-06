@@ -1,6 +1,6 @@
 import argparse
 from build123d import export_stl, export_step, export_gltf, export_brep, Mesher
-from config import Config, parse_output_formats
+from config import Config, parse_output_formats, parse_print_area
 from generate_ruler import generate_ruler
 
 
@@ -29,8 +29,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("-u", "--ruler-u", type=int, default=8,
-                        help="How long the ruler should be in Gridfinity units (default: 8)")
+    parser.add_argument("-u", "--ruler-u", type=int, default=None,
+                        help="How long the ruler should be in Gridfinity units. If omitted, the ruler will be sized to the maximum length that fits the printer bed.")
     parser.add_argument("-w", "--width-multiplier", type=float, default=0.5,
                         help="Ruler width as a multiplier of 1 length unit (default: 0.5)")
     parser.add_argument("-o", "--output", type=str, default="gridfinity_ruler",
@@ -50,6 +50,8 @@ def main():
                         help="Side chamfer width inward along the Y axis in mm (default: 4.0)")
     parser.add_argument("--chamfer-depth", type=float, default=1.0,
                         help="Side chamfer depth downward along the Z axis in mm (default: 1.0)")
+    parser.add_argument("--bed-size", type=parse_print_area, default="256x256",
+                        help="Printer bed size in WIDTHxDEPTH format, e.g. '270x270' (default: 256x256)")
 
     args = parser.parse_args()
     config = Config.from_args(args)
@@ -58,7 +60,7 @@ def main():
     multicolor_ruler = generate_ruler(config)
 
     print(f"\n--- GENERATION INFO ---")
-    print(f"Parameters used: Length={config.ruler_u}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm")
+    print(f"Parameters used: Length={config.ruler_u}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.print_area_str}")
     print(f"Target extensions generated: {config.output_format}")
 
     # Export generated model into requested formats

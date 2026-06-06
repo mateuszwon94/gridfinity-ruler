@@ -1,4 +1,5 @@
 import argparse
+import math
 
 
 def parse_output_formats(value: str) -> list[str]:
@@ -25,6 +26,33 @@ def parse_output_formats(value: str) -> list[str]:
     return selected_formats
 
 
+def parse_print_area(value: str) -> tuple[int, int]:
+    """
+    Parse a printer bed size in the format WIDTHxDEPTH, e.g. '270x270'.
+    """
+    normalized = value.strip().lower()
+    parts = normalized.split("x")
+    if len(parts) != 2:
+        raise argparse.ArgumentTypeError(
+            "Printer bed size must be in format WIDTHxDEPTH, e.g. '270x270'."
+        )
+
+    try:
+        width = int(parts[0])
+        depth = int(parts[1])
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "Printer bed dimensions must be integers, e.g. '270x270'."
+        )
+
+    if width <= 0 or depth <= 0:
+        raise argparse.ArgumentTypeError(
+            "Printer bed dimensions must be positive integers."
+        )
+
+    return width, depth
+
+
 class Config:
     def __init__(self, **kwargs):
         """
@@ -34,7 +62,7 @@ class Config:
         self.u_len = kwargs.get("u_len", 42.0)
         self.u_height = kwargs.get("u_height", 7.0)
         
-        self.ruler_u = kwargs.get("ruler_u", 8)
+        self.ruler_u = kwargs.get("ruler_u")
         self.width_multiplier = kwargs.get("width_multiplier", 0.5)
         self.base_thickness = kwargs.get("base_thickness", 2.0)
         self.marker_extrusion = kwargs.get("marker_extrusion", 0.3)
@@ -43,6 +71,10 @@ class Config:
         self.chamfer_depth = kwargs.get("chamfer_depth", 1.0)
         
         self.output = kwargs.get("output", "gridfinity_ruler")
+        self.print_area = kwargs.get("print_area", (256, 256))
+
+        if self.ruler_u is None:
+            self.ruler_u = self.compute_max_ruler_units()
         
         raw_format = kwargs.get("output_format", "all")
         if raw_format == "all":
@@ -62,6 +94,68 @@ class Config:
         """
         return cls(**vars(args))
 
+    def compute_max_ruler_units(self) -> int:
+        """Compute the maximum whole Gridfinity units that fit on the printer bed."""
+        avail_width = self.print_area[0] - 20
+        avail_depth = self.print_area[1] - 20
+
+        if avail_width <= 0 or avail_depth <= 0:
+            raise ValueError(
+                "Printer bed size too small after applying 10mm margins on each side."
+            )
+
+        rect_width = self.ruler_width
+        if rect_width > min(avail_width, avail_depth):
+            raise ValueError(
+                f"Ruler width {rect_width:.1f}mm does not fit within the available print area "
+                f"{avail_width}x{avail_depth}mm after margins."
+            )
+
+        max_length = self._max_rectangle_length(avail_width, avail_depth, rect_width)
+        max_units = int(math.floor(max_length / self.u_len))
+
+        if max_units < 1:
+            raise ValueError(
+                "Printer bed is too small to fit a single Gridfinity length unit."
+            )
+
+        return max_units
+
+    @staticmethod
+    def _max_rectangle_length(avail_width: float, avail_depth: float, rect_width: float) -> float:
+        """Find the maximum length of a rectangle of given width that fits in the available box."""
+        def length_for(theta: float) -> float:
+            c = math.cos(theta)
+            s = math.sin(theta)
+            if c < 1e-9:
+                return avail_depth if rect_width <= avail_width else 0.0
+            if s < 1e-9:
+                return avail_width if rect_width <= avail_depth else 0.0
+            x = (avail_width - rect_width * s) / c
+            y = (avail_depth - rect_width * c) / s
+            return min(x, y) if x >= 0 and y >= 0 else 0.0
+
+        best_theta = 0.0
+        best_length = 0.0
+        for step in range(1001):
+            theta = step * math.pi / 2000
+            length = length_for(theta)
+            if length > best_length:
+                best_length = length
+                best_theta = theta
+
+        low = max(0.0, best_theta - 0.02)
+        high = min(math.pi / 2, best_theta + 0.02)
+        for _ in range(20):
+            t1 = low + (high - low) / 3
+            t2 = high - (high - low) / 3
+            if length_for(t1) > length_for(t2):
+                high = t2
+            else:
+                low = t1
+
+        return max(best_length, length_for((low + high) / 2))
+
     @property
     def ruler_length(self) -> float:
         return self.ruler_u * self.u_len
@@ -69,3 +163,7 @@ class Config:
     @property
     def ruler_width(self) -> float:
         return self.width_multiplier * self.u_len
+
+    @property
+    def print_area_str(self) -> str:
+        return f"{self.print_area[0]}x{self.print_area[1]}"
