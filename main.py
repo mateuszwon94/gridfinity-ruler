@@ -1,7 +1,60 @@
 import argparse
-from build123d import export_stl, export_step, export_gltf, export_brep, Mesher
+from collections.abc import Iterable
+from build123d import Compound, MeshType, Unit, Mesher, export_stl, export_step, export_gltf, export_brep
 from config import Config, parse_output_formats, parse_bed_size
 from generate_ruler import generate_ruler
+
+
+def _get_export_shapes(shape):
+    """Return the top-level shapes to export while preserving Part colors."""
+    if isinstance(shape, Compound):
+        return list(shape.children) if shape.children else [shape]
+    if isinstance(shape, Iterable) and not isinstance(shape, (str, bytes)):
+        return list(shape)
+    return [shape]
+
+
+def _export_3mf_with_color(shape, filename, unit=Unit.MM):
+    exporter = Mesher(unit=unit)
+    shapes = _get_export_shapes(shape)
+
+    for b3d_shape in shapes:
+        mesh_3mf = exporter.model.AddMeshObject()
+
+        ocp_mesh_vertices, triangles = exporter._mesh_shape(
+            b3d_shape,
+            linear_deflection=0.001,
+            angular_deflection=0.1,
+        )
+
+        if len(ocp_mesh_vertices) < 3 or not triangles:
+            continue
+
+        vertices_3mf, triangles_3mf = exporter._create_3mf_mesh(
+            ocp_mesh_vertices,
+            triangles,
+        )
+
+        mesh_3mf.SetGeometry(vertices_3mf, triangles_3mf)
+        mesh_3mf.SetType(Mesher._map_b3d_mesh_type_3mf[MeshType.MODEL])
+        if getattr(b3d_shape, "label", None):
+            mesh_3mf.SetName(b3d_shape.label)
+
+        exporter._add_color(b3d_shape, mesh_3mf)
+
+        exporter.meshes.append(mesh_3mf)
+        exporter.model.AddBuildItem(
+            mesh_3mf,
+            exporter.wrapper.GetIdentityTransform(),
+        )
+        components = exporter.model.AddComponentsObject()
+        components.AddComponent(
+            mesh_3mf,
+            exporter.wrapper.GetIdentityTransform(),
+        )
+
+    writer = exporter.model.QueryWriter("3mf")
+    writer.WriteToFile(filename)
 
 
 def main():
@@ -88,9 +141,7 @@ def main():
 
     if "3mf" in config.output_format:
         mf_filename = f"{config.output}.3mf"
-        exporter = Mesher()
-        exporter.add_shape(multicolor_ruler)
-        exporter.write(mf_filename)
+        _export_3mf_with_color(multicolor_ruler, mf_filename)
         print(f"[+] Saved 3MF file: {mf_filename}")
 
     if "gltf" in config.output_format:

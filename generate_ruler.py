@@ -127,4 +127,9 @@ def generate_ruler(config):
         markers.part.color = Color("Black")
 
     # Combine base and markers into a single compound object for export
-    return Compound([base_ruler.part, markers.part])
+    # Preserve the explicit children list so export routines can retain color and
+    # metadata for each top-level part.
+    return Compound(
+        [base_ruler.part, markers.part],
+        children=[base_ruler.part, markers.part],
+    )
