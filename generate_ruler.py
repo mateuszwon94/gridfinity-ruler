@@ -1,87 +1,7 @@
 import argparse
 from build123d import *
-
-def parse_output_formats(value: str) -> list[str]:
-    """
-    Custom argparse type handler to parse comma-separated formats or 'all'.
-    Validates input against supported file extensions.
-    """
-    val_lower = value.strip().lower()
-    
-    # Define currently supported extensions in the system
-    supported_formats = ["stl", "step", "3mf", "gltf", "brep"]
-    
-    if val_lower == "all":
-        return supported_formats
-        
-    # Split the string by commas and strip any accidental whitespace
-    selected_formats = [f.strip().lower() for f in val_lower.split(",")]
-    
-    # Validate each parsed format
-    for f in selected_formats:
-        if f not in supported_formats:
-            raise argparse.ArgumentTypeError(
-                f"Unsupported format '{f}'. Supported formats are: "
-                f"{', '.join(supported_formats)} or 'all'."
-            )
-            
-    return selected_formats
-
-# ==========================================
-# CONFIGURATION MANAGEMENT CLASS
-# ==========================================
-class Config:
-    def __init__(self, **kwargs):
-        """
-        Initialize the configuration with explicit values or defaults.
-        Ensures output_format always resolves to a list of validated strings.
-        """
-        # Gridfinity system defaults
-        self.u_len = kwargs.get("u_len", 42.0)
-        self.u_height = kwargs.get("u_height", 7.0)
-        
-        # Ruler parameters
-        self.ruler_u = kwargs.get("ruler_u", 8)
-        self.width_multiplier = kwargs.get("width_multiplier", 0.5)
-        self.base_thickness = kwargs.get("base_thickness", 2.0)
-        self.marker_extrusion = kwargs.get("marker_extrusion", 0.3)
-        
-        # Chamfer parameters
-        self.chamfer_width = kwargs.get("chamfer_width", 4.0)
-        self.chamfer_depth = kwargs.get("chamfer_depth", 1.0)
-        
-        # Output parameters
-        self.output = kwargs.get("output", "gridfinity_ruler")
-        
-        # Standardize output_format field to always be a list
-        raw_format = kwargs.get("output_format", "all")
-        if raw_format == "all":
-            self.output_format = ["stl", "step", "3mf", "gltf", "brep"]
-        elif isinstance(raw_format, list):
-            self.output_format = raw_format
-        elif isinstance(raw_format, str):
-            self.output_format = [f.strip().lower() for f in raw_format.split(",")]
-        else:
-            self.output_format = [raw_format]
-
-    @classmethod
-    def from_args(cls, args):
-        """
-        Factory method to initialize the Config class directly 
-        from the parsed command line arguments.
-        """
-        return cls(**vars(args))
-
-    # Dynamic properties for calculated values (Read-only adapters)
-    @property
-    def ruler_length(self) -> float:
-        """Calculate total physical length dynamically based on current units."""
-        return self.ruler_u * self.u_len
-
-    @property
-    def ruler_width(self) -> float:
-        """Calculate total physical width dynamically based on current multiplier."""
-        return self.width_multiplier * self.u_len
+from config import Config, parse_output_formats
+from tqdm import tqdm
 
 
 def main():
@@ -142,6 +62,13 @@ def main():
     # ==========================================
     config = Config.from_args(args)
 
+    # --- progress bar calculation ---
+    total_length_markers = config.ruler_u + 1
+    total_half_markers = config.ruler_u
+    max_z_units = int(config.ruler_length // config.u_height)
+    total_height_markers = max_z_units + 1
+    total_steps = total_length_markers * 2 + total_half_markers + total_height_markers * 2
+
     # ==========================================
     # GEOMETRY GENERATION (Using Config Object)
     # ==========================================
@@ -162,70 +89,92 @@ def main():
     base_ruler.part.color = Color("White")
 
     # --- PART 2: MARKERS AND TEXT (COLOR: BLACK) ---
-    with BuildPart() as markers:
-        with BuildSketch(Plane.XY) as markers_sketch:
-            
-            # --- Length Scale (Top Edge, Y = RULER_WIDTH / 2) ---
-            for i in range(0, config.ruler_u + 1):
-                x = i * config.u_len
+    with tqdm(total=total_steps, bar_format="Generating [{bar}] {percentage:3.0f}% {postfix}", ascii=True, ncols=90) as progress:
+        with BuildPart() as markers:
+            with BuildSketch(Plane.XY) as markers_sketch:
                 
-                # First marker: Half-triangle (right half), tip at (0,0)
-                if i == 0:
-                    with Locations((x, config.ruler_width/2)):
-                        Polygon([(0, 0), (1.5, -3), (0, -3)], align=(Align.MIN, Align.MAX))
-                    with Locations((x + 1, config.ruler_width/2 - 4)):
-                        Text(str(i), font_size=6, align=(Align.MIN, Align.MAX))
-                
-                # Last marker: Half-triangle (left half), tip at (0,0)
-                elif i == config.ruler_u:
-                    with Locations((x, config.ruler_width/2)):
-                        Polygon([(0, 0), (-1.5, -3), (0, -3)], align=(Align.MAX, Align.MAX))
-                    with Locations((x - 1, config.ruler_width/2 - 4)):
-                        Text(str(i), font_size=6, align=(Align.MAX, Align.MAX))
-                
-                # Middle markers: Full triangle, tip at (0,0)
-                else:
-                    with Locations((x, config.ruler_width/2)):
-                        Polygon([(0, 0), (1.5, -3), (-1.5, -3)], align=(Align.CENTER, Align.MAX))
-                    with Locations((x, config.ruler_width/2 - 4)):
-                        Text(str(i), font_size=6, align=(Align.CENTER, Align.MAX))
+                # --- Length Scale (Top Edge, Y = RULER_WIDTH / 2) ---
+                for i in range(0, config.ruler_u + 1):
+                    x = i * config.u_len
+                    progress.set_postfix_str(f"Length scale {i} elements")
+                    
+                    # First marker: Half-triangle (right half), tip at (0,0)
+                    if i == 0:
+                        with Locations((x, config.ruler_width/2)):
+                            Polygon([(0, 0), (1.5, -3), (0, -3)], align=(Align.MIN, Align.MAX))
+                        progress.update(1)
 
-            # Half-unit scale markers
-            for i in range(1, config.ruler_u * 2):
-                if i % 2 != 0:
-                    x = i * (config.u_len / 2)
-                    with Locations((x, config.ruler_width/2)):
-                        Polygon([(0, 0), (1, -2), (-1, -2)], align=(Align.CENTER, Align.MAX))
+                        with Locations((x + 1, config.ruler_width/2 - 4)):
+                            Text(str(i), font_size=6, align=(Align.MIN, Align.MAX))
+                        progress.update(1)
+                    
+                    # Last marker: Half-triangle (left half), tip at (0,0)
+                    elif i == config.ruler_u:
+                        with Locations((x, config.ruler_width/2)):
+                            Polygon([(0, 0), (-1.5, -3), (0, -3)], align=(Align.MAX, Align.MAX))
+                        progress.update(1)
 
-            # --- Height Scale (Bottom Edge, Y = -RULER_WIDTH / 2) ---
-            max_z_units = int(config.ruler_length // config.u_height)
-            for i in range(0, max_z_units + 1):
-                x = i * config.u_height
-                
-                # First marker: Half-triangle (right half), tip at (0,0)
-                if i == 0:
-                    with Locations((x, -config.ruler_width/2)):
-                        Polygon([(0, 0), (1, 2), (0, 2)], align=(Align.MIN, Align.MIN))
-                    with Locations((x + 1, -config.ruler_width/2 + 3)):
-                        Text(str(i), font_size=4, align=(Align.MIN, Align.MIN))
-                
-                # Last marker: Half-triangle (left half), tip at (0,0)
-                elif i == max_z_units:
-                     with Locations((x, -config.ruler_width/2)):
-                         Polygon([(0, 0), (-1, 2), (0, 2)], align=(Align.MAX, Align.MIN))
-                     with Locations((x - 1, -config.ruler_width/2 + 3)):
-                        Text(str(i), font_size=4, align=(Align.MAX, Align.MIN))
-                
-                # Middle markers: Full triangle, tip at (0,0)
-                else:
-                    with Locations((x, -config.ruler_width/2)):
-                        Polygon([(0, 0), (1, 2), (-1, 2)], align=(Align.CENTER, Align.MIN))
-                    with Locations((x, -config.ruler_width/2 + 3)):
-                        Text(str(i), font_size=4, align=(Align.CENTER, Align.MIN))
+                        with Locations((x - 1, config.ruler_width/2 - 4)):
+                            Text(str(i), font_size=6, align=(Align.MAX, Align.MAX))
+                        progress.update(1)
+                    
+                    # Middle markers: Full triangle, tip at (0,0)
+                    else:
+                        with Locations((x, config.ruler_width/2)):
+                            Polygon([(0, 0), (1.5, -3), (-1.5, -3)], align=(Align.CENTER, Align.MAX))
+                        progress.update(1)
 
-        extrude(amount=config.base_thickness + config.marker_extrusion)
+                        with Locations((x, config.ruler_width/2 - 4)):
+                            Text(str(i), font_size=6, align=(Align.CENTER, Align.MAX))
+                        progress.update(1)
 
-    markers.part.color = Color("Black")
+                # Half-unit scale markers
+                for i in range(1, config.ruler_u * 2):
+                    if i % 2 != 0:
+                        x = i * (config.u_len / 2)
+                        progress.set_postfix_str(f"Length scale {i/2} elements")
+                        with Locations((x, config.ruler_width/2)):
+                            Polygon([(0, 0), (1, -2), (-1, -2)], align=(Align.CENTER, Align.MAX))
+                        progress.update(1)
+
+                # --- Height Scale (Bottom Edge, Y = -RULER_WIDTH / 2) ---
+                for i in range(0, max_z_units + 1):
+                    x = i * config.u_height
+                    progress.set_postfix_str(f"Height scale {i} elements")
+                    
+                    # First marker: Half-triangle (right half), tip at (0,0)
+                    if i == 0:
+                        with Locations((x, -config.ruler_width/2)):
+                            Polygon([(0, 0), (1, 2), (0, 2)], align=(Align.MIN, Align.MIN))
+                        progress.update(1)
+
+                        with Locations((x + 1, -config.ruler_width/2 + 3)):
+                            Text(str(i), font_size=4, align=(Align.MIN, Align.MIN))
+                        progress.update(1)
+                    
+                    # Last marker: Half-triangle (left half), tip at (0,0)
+                    elif i == max_z_units:
+                        with Locations((x, -config.ruler_width/2)):
+                            Polygon([(0, 0), (-1, 2), (0, 2)], align=(Align.MAX, Align.MIN))
+                        progress.update(1)
+
+                        with Locations((x - 1, -config.ruler_width/2 + 3)):
+                            Text(str(i), font_size=4, align=(Align.MAX, Align.MIN))
+                        progress.update(1)
+                    
+                    # Middle markers: Full triangle, tip at (0,0)
+                    else:
+                        with Locations((x, -config.ruler_width/2)):
+                            Polygon([(0, 0), (1, 2), (-1, 2)], align=(Align.CENTER, Align.MIN))
+                        progress.update(1)
+
+                        with Locations((x, -config.ruler_width/2 + 3)):
+                            Text(str(i), font_size=4, align=(Align.CENTER, Align.MIN))
+                        progress.update(1)
+
+            extrude(amount=config.base_thickness + config.marker_extrusion)
+
+        markers.part.color = Color("Black")
 
     # ==========================================
     # COMBINATION AND FILE EXPORT
