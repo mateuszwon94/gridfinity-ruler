@@ -63,6 +63,14 @@ def main():
     # Generate the ruler model using parsed configuration
     multicolor_ruler = generate_ruler(config)
 
+    # Check if the generated ruler fits on the bed and issue warning if it doesn't
+    if not config.ruler_fits_on_bed():
+        max_possible = config.get_max_ruler_length()
+        print(f"\n⚠️  WARNING: The ruler ({config.ruler_length:.1f}mm) does NOT fit on the printer bed!")
+        print(f"   Maximum possible length: {max_possible:.1f}mm ({max_possible / config.unit_length:.1f}U)")
+        print(f"   Available bed: {config.bed_size[0]}x{config.bed_size[1]}mm with {config.bed_margin}mm margins")
+        print()
+
     print(f"\n--- GENERATION INFO ---")
     print(f"Parameters used: Length={config.ruler_units}U, Width={config.width_multiplier}U ({config.ruler_width}mm), Base Thickness={config.base_thickness}mm, Extrusion={config.marker_extrusion}mm, Bed Size={config.bed_size_str}, Bed Margin={config.bed_margin}mm, Half-unit labels={config.half_unit_labels}")
     print(f"Target extensions generated: {config.output_format}")

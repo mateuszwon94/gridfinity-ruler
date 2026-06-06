@@ -161,6 +161,26 @@ class Config:
 
         return max(best_length, length_for((low + high) / 2))
 
+    def get_max_ruler_length(self) -> float:
+        """Get the maximum ruler length that fits on the printer bed."""
+        avail_width = self.bed_size[0] - 2 * self.bed_margin
+        avail_depth = self.bed_size[1] - 2 * self.bed_margin
+
+        if avail_width <= 0 or avail_depth <= 0:
+            return 0.0
+
+        rect_width = self.ruler_width
+        if rect_width > min(avail_width, avail_depth):
+            return 0.0
+
+        return self._max_rectangle_length(avail_width, avail_depth, rect_width)
+
+    def ruler_fits_on_bed(self) -> bool:
+        """Check if the current ruler configuration fits on the printer bed."""
+        max_length = self.get_max_ruler_length()
+        return self.ruler_length <= max_length
+
+
     @property
     def ruler_length(self) -> float:
         return self.ruler_units * self.unit_length
